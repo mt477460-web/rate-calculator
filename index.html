@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>13項目・Rate計算機</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#20242b;background:#f5f6f8}
+*{box-sizing:border-box}
+body{margin:0;padding:20px 14px}
+main{max-width:650px;margin:auto}
+h1{font-size:22px;margin:0 0 16px}
+#inputs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.item{display:flex;align-items:center;justify-content:space-between;gap:5px;padding:10px 9px;border:1px solid #d7dbe2;border-radius:9px;background:white;min-width:0}
+.name{font-weight:750;font-size:15px;white-space:nowrap}
+.line{display:flex;align-items:center;gap:5px;font-size:14px;white-space:nowrap}
+select{width:48px;height:36px;padding:0 2px;border:1px solid #cbd0d8;border-radius:7px;background:white;color:#20242b;text-align:center;text-align-last:center;font-size:15px;font-weight:700}
+select:focus{outline:2px solid #2563eb;outline-offset:1px}
+.actions{display:flex;gap:8px;margin:14px 0}
+button{padding:9px 13px;border-radius:8px;font-size:13px;font-weight:650;border:1px solid #cbd0d8;background:white;color:#20242b;cursor:pointer}
+.primary,.active{background:#2563eb;color:white;border-color:#2563eb}
+#error{color:#dc2626;font-size:12px;font-weight:650;min-height:16px}
+#result{border:1px solid #d7dbe2;border-radius:12px;padding:13px;background:white;display:flex;flex-direction:column;gap:13px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+#rate{font-weight:750;font-size:20px}
+.toggle{display:flex;gap:5px}
+.results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px 7px}
+.result{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0}
+.cat{background:#6b7280;color:white;border-radius:20px;padding:4px 9px;font-size:12px;font-weight:700;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.tier{border-radius:20px;padding:4px 11px;font-size:12px;font-weight:750;min-width:49px;text-align:center}
+.invalid{border:2px solid #dc2626!important;background:#fee2e2!important;color:#991b1b!important}
+#copyMsg{font-size:12px;min-height:15px}
+@media(max-width:360px){.item{padding:8px 6px}.name{font-size:13px}.line{font-size:12px}select{width:42px}}
+</style>
+</head>
+<body>
+<main>
+<h1>13項目・Rate計算機</h1>
+<div id="inputs"></div>
+<div class="actions">
+<button class="primary" id="calc">計算する</button>
+<button id="reset">リセット</button>
+</div>
+<div id="error" aria-live="polite"></div>
+<section id="result">
+<div class="top">
+<div id="rate">Rate: --</div>
+<div class="toggle">
+<button class="active" id="original">元の順</button>
+<button id="sorted">Tier順</button>
+</div>
+</div>
+<div class="results" id="results"></div>
+<button id="copy">結果をコピー</button>
+<div id="copyMsg" aria-live="polite"></div>
+</section>
+</main>
+<script>
+(()=>{
+const names=['Sword','Axe','Rod','UHC','DSMP','World','Mace','SMace','EMace','EFMace','Spear','Crystal','cart'];
+const colors={1:['#FDE047','#493B00'],2:['#D1D5DB','#30343B'],3:['#C88755','#382014'],4:['#86D39A','#123D20'],5:['#7DD3FC','#12364A'],0:['#E5E7EB','#4B5563']};
+const area=document.getElementById('inputs');
+names.forEach((name,i)=>{
+ const item=document.createElement('label');item.className='item';
+ const title=document.createElement('span');title.className='name';title.textContent=name;
+ const line=document.createElement('span');line.className='line';
+ const label=document.createElement('span');label.textContent='Tier';
+ const select=document.createElement('select');select.dataset.index=i;select.setAttribute('aria-label',name+' Tier');
+ select.innerHTML='<option value="">--</option>'+[1,2,3,4,5].map(n=>`<option value="${n}">${n}</option>`).join('');
+ select.addEventListener('change',()=>{validate();document.getElementById('error').textContent='';});
+ line.append(label,select);item.append(title,line);area.append(item);
+});
+const selects=[...document.querySelectorAll('#inputs select')];
+let entries=names.map((name,index)=>({name,index,value:0})),rate=null,sortMode='original';
+function validate(){
+ let valid=true;
+ selects.forEach(s=>{const v=s.value;const bad=v!==''&&(!Number.isInteger(Number(v))||Number(v)<1||Number(v)>5);s.classList.toggle('invalid',bad);if(bad)valid=false;});
+ return valid;
+}
+function render(){
+ const list=[...entries];
+ if(sortMode==='tier')list.sort((a,b)=>{if(a.value===0&&b.value!==0)return 1;if(b.value===0&&a.value!==0)return -1;return a.value-b.value||a.index-b.index;});
+ const area=document.getElementById('results');area.innerHTML='';
+ list.forEach(e=>{
+  const wrap=document.createElement('div');wrap.className='result';
+  const cat=document.createElement('span');cat.className='cat';cat.textContent=e.name;
+  const tier=document.createElement('span');tier.className='tier';tier.textContent=e.value===0?'--':'Tier'+e.value;
+  const c=colors[e.value];tier.style.background=c[0];tier.style.color=c[1];
+  wrap.append(cat,tier);area.append(wrap);
+ });
+ document.getElementById('rate').textContent='Rate: '+(rate===null?'--':rate);
+}
+function calculate(){
+ const error=document.getElementById('error');error.textContent='';
+ if(!validate()){error.textContent='範囲内の数字ではありません';return;}
+ const values=selects.map(s=>s.value===''?0:Number(s.value));const active=values.filter(v=>v!==0);
+ if(!active.length){error.textContent='1つ以上、1〜5の数字を選んでね。';return;}
+ const average=active.reduce((sum,v)=>sum+6-v,0)/active.length;
+ rate=Math.floor(average/5*1000+0.5);
+ entries=names.map((name,index)=>({name,index,value:values[index]}));render();
+}
+document.getElementById('calc').addEventListener('click',calculate);
+document.getElementById('original').addEventListener('click',()=>{
+ sortMode='original';document.getElementById('original').classList.add('active');document.getElementById('sorted').classList.remove('active');render();
+});
+document.getElementById('sorted').addEventListener('click',()=>{
+ sortMode='tier';document.getElementById('sorted').classList.add('active');document.getElementById('original').classList.remove('active');render();
+});
+document.getElementById('reset').addEventListener('click',()=>{
+ selects.forEach(s=>{s.value='';s.classList.remove('invalid');});
+ entries=names.map((name,index)=>({name,index,value:0}));rate=null;sortMode='original';
+ document.getElementById('error').textContent='';
+ document.getElementById('original').classList.add('active');document.getElementById('sorted').classList.remove('active');
+ document.getElementById('copyMsg').textContent='';render();
+});
+document.getElementById('copy').addEventListener('click',async()=>{
+ const msg=document.getElementById('copyMsg');
+ if(rate===null){msg.textContent='先に計算してね';return;}
+ const ordered=[...entries].sort((a,b)=>sortMode==='tier'?((a.value===0?6:a.value)-(b.value===0?6:b.value)||a.index-b.index):a.index-b.index);
+ const text='Rate: '+rate+'\n'+ordered.map(e=>e.name+': '+(e.value===0?'--':'Tier'+e.value)).join('\n');
+ try{await navigator.clipboard.writeText(text);msg.textContent='コピーしました';}
+ catch(e){msg.textContent='コピーできませんでした';}
+});
+render();
+})();
+</script>
+</body>
+</html>
